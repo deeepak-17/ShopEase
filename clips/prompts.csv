@@ -1,0 +1,11 @@
+id,text,what_it_tests
+01,Ravi anna ku nooru aimbadhu rupa kadan,Tamil number words and honorific
+02,Ravi ku evlo baaki irukku,balance query
+03,Priya akka irunooru rupa kuduthaanga,part payment and honorific
+04,Ravi ku rendu kilo rice and oil packet ezhunooru aimbadhu rupa kadan,English items in Tamil with a large amount
+05,sorry adhu irunootri anju illa irunootri aimbadhu,spoken correction 205 not 250
+06,adha cancel pannu,undo with an English verb
+07,onnara kilo sugar and kaal kilo tea powder Murugan ku kadan,fractions and multi-item
+08,inniku evlo vyaapaaram,daily total
+09,Kutty na Karthik,voice-taught alias
+10,Ravi ku reminder anuppu,reminder intent

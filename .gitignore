@@ -1,0 +1,13 @@
+.venv/
+.env
+__pycache__/
+.pytest_cache/
+.coverage
+
+# Voice recordings and generated output stay local: they contain real voices.
+clips/*
+!clips/prompts.csv
+spikes/output/
+
+# macOS
+.DS_Store
