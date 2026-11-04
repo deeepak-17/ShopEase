@@ -11,3 +11,5 @@ spikes/output/
 
 # macOS
 .DS_Store
+*.egg-info/
+build/

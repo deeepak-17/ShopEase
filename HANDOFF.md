@@ -1,4 +1,4 @@
-# KadaiMate handoff
+# ShopEase handoff
 
 Last updated: 2026-11-03
 
@@ -14,7 +14,7 @@ The next step is the implementation plan, then Deepak's review, then a test-firs
 - Deadline: Nov 10, 2026, 11:59 PM IST. Planned submission: Nov 9.
 - Selection: verified engagement on the public demo post decides the shortlist; individual interviews decide offers.
 - Deepak is Member A, in a team of two.
-- Spec: `KadaiMate Problem Statement & Build Plan.pdf` in this folder. It is not an implementation plan.
+- Spec: `docs/spec.pdf` (written under the old name, KadaiMate). It is not an implementation plan.
 - Online copy of the spec: https://claude.ai/artifact/Wj6jf5xBQAEyo3jJEsxB55
 
 ## Decisions

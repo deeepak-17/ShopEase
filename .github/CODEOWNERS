@@ -1,0 +1,13 @@
+# Reviews are requested automatically from the owner of each path.
+# TODO: replace @MEMBER_B with your teammate's GitHub username, then uncomment.
+/src/shopease/stt/     @deeepak-17
+/src/shopease/parser/  @deeepak-17
+/web/talk/             @deeepak-17
+/tests/stt/            @deeepak-17
+/tests/parser/         @deeepak-17
+# /src/shopease/matching/      @MEMBER_B
+# /src/shopease/confirmation/  @MEMBER_B
+# /src/shopease/ledger/        @MEMBER_B
+# /src/shopease/tts/           @MEMBER_B
+# /web/dashboard/              @MEMBER_B
+# /src/shopease/contracts.py   @deeepak-17 @MEMBER_B

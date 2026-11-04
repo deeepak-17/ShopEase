@@ -1,0 +1,18 @@
+name: Task
+description: A piece of work for A, B or both
+labels: []
+body:
+  - type: dropdown
+    id: owner
+    attributes:
+      label: Owner
+      options: [Member A, Member B, Shared]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What and done-when
+      description: What to build, and how we know it's done (an example sentence helps).
+    validations:
+      required: true
