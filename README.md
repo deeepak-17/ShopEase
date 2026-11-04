@@ -51,5 +51,8 @@ Never commit `.env` or voice recordings (`clips/`). Both are git-ignored.
 
 ## Working together
 
+AI agents read [AGENTS.md](AGENTS.md). Antigravity setup for Member B:
+[docs/onboarding-member-b.md](docs/onboarding-member-b.md).
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for branches, PRs and how we track
 progress.
