@@ -47,6 +47,10 @@ cp .env.example .env   # add your GNANI_API_KEY
 pytest
 ```
 
+The ledger uses `shopease.db` by default so entries survive restarts. Set
+`SHOPEASE_DB_PATH` to choose another SQLite file. The repository connection is
+safe to use from worker threads.
+
 Never commit `.env` or voice recordings (`clips/`). Both are git-ignored.
 
 ## Working together

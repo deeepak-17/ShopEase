@@ -18,3 +18,8 @@ def test_alias_is_checked_before_phonetic_matching():
 
 def test_unknown_name_is_not_silently_matched():
     assert isinstance(match_name("Suresh", (Customer(1, "Ravi Kumar"),)), NoMatch)
+
+
+def test_matches_tamil_name_with_viramas():
+    result = match_name("கார்த்திக்", (Customer(1, "Karthik"),))
+    assert isinstance(result, Matched)

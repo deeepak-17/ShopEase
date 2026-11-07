@@ -3,7 +3,10 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 import json
+import os
+from pathlib import Path
 import sqlite3
+from threading import RLock
 from typing import Callable, Iterable
 
 from shopease.matching import Customer
@@ -30,8 +33,14 @@ class LedgerRepository:
         self,
         connection: sqlite3.Connection | None = None,
         now: Callable[[], datetime] | None = None,
+        database_path: str | Path | None = None,
     ) -> None:
-        self.connection = connection or sqlite3.connect(":memory:")
+        self._lock = RLock()
+        if connection is not None:
+            self.connection = connection
+        else:
+            path = database_path or os.environ.get("SHOPEASE_DB_PATH", "shopease.db")
+            self.connection = sqlite3.connect(path, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
         self.now = now or (lambda: datetime.now(timezone.utc))
         self._create_schema()
@@ -119,7 +128,10 @@ class LedgerRepository:
         query = """
             SELECT * FROM entries
             WHERE voided = 0
-              AND id NOT IN (SELECT replaces_id FROM entries WHERE replaces_id IS NOT NULL)
+              AND id NOT IN (
+                  SELECT replaces_id FROM entries
+                  WHERE replaces_id IS NOT NULL AND voided = 0
+              )
         """
         parameters: tuple[object, ...] = ()
         if customer_id is not None:
@@ -133,8 +145,9 @@ class LedgerRepository:
         return entries[-1] if entries else None
 
     def void_entry(self, entry_id: int) -> None:
-        self.connection.execute("UPDATE entries SET voided = 1 WHERE id = ?", (entry_id,))
-        self.connection.commit()
+        with self._lock:
+            self.connection.execute("UPDATE entries SET voided = 1 WHERE id = ?", (entry_id,))
+            self.connection.commit()
 
     def balance(self, customer_id: int) -> Decimal:
         total = Decimal("0")
@@ -156,7 +169,10 @@ class LedgerRepository:
             """
             SELECT COALESCE(SUM(amount_paise), 0) AS total FROM entries
             WHERE created_at LIKE ? AND voided = 0
-              AND id NOT IN (SELECT replaces_id FROM entries WHERE replaces_id IS NOT NULL)
+              AND id NOT IN (
+                  SELECT replaces_id FROM entries
+                  WHERE replaces_id IS NOT NULL AND voided = 0
+              )
               AND kind IN ('credit', 'sale')
             """,
             (prefix + "%",),

@@ -66,10 +66,29 @@ def strip_name_parts(name: str) -> str:
 
 
 def transliterate(value: str) -> str:
-    """Apply a small deterministic Tamil transliteration table."""
+    """Apply a small deterministic Tamil syllable transliteration table."""
     output: list[str] = []
-    for character in unicodedata.normalize("NFC", value):
-        output.append(_TAMIL_TO_LATIN.get(character, character))
+    characters = list(unicodedata.normalize("NFC", value))
+    vowel_signs = {"ா": "a", "ி": "i", "ீ": "ee", "ு": "u", "ூ": "oo",
+                   "ெ": "e", "ே": "e", "ை": "ai", "ொ": "o", "ோ": "o", "ௌ": "au"}
+    consonants = set("கஙசஜஞடணதநபமயரலவழளறனஸஷ")
+    index = 0
+    while index < len(characters):
+        character = characters[index]
+        if character in consonants:
+            base = _TAMIL_TO_LATIN[character][:-1]
+            if index + 1 < len(characters) and characters[index + 1] == "்":
+                output.append(base)
+                index += 2
+                continue
+            if index + 1 < len(characters) and characters[index + 1] in vowel_signs:
+                output.append(base + vowel_signs[characters[index + 1]])
+                index += 2
+                continue
+            output.append(_TAMIL_TO_LATIN[character])
+        else:
+            output.append(_TAMIL_TO_LATIN.get(character, character))
+        index += 1
     return "".join(output).replace("ravai", "ravi").replace("tavai", "tavi")
 
 
@@ -82,6 +101,8 @@ def normalise_name(name: str) -> str:
         ("gh", "k"), ("kh", "k"), ("ph", "p"), ("bh", "p"),
     )
     for source, target in replacements:
+        value = value.replace(source, target)
+    for source, target in (("aa", "a"), ("ee", "e"), ("oo", "o")):
         value = value.replace(source, target)
     value = re.sub(r"(.)\1+", r"\1", value)
     if len(value) > 3 and value[-1:] in {"a", "u"}:
