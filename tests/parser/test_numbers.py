@@ -91,3 +91,15 @@ def test_read_number_rejects_negative_start():
 
 def test_digits_must_match_whole_word():
     assert not is_number_word("250\n")
+
+
+@pytest.mark.parametrize(
+    "words, value, end",
+    [
+        (["ஐநூறு", "2", "கிலோ"], "500", 1),  # review #22: a quantity after an amount
+        (["ஆயிரம்", "5"], "1000", 1),
+        (["2", "அரை"], "2", 1),
+    ],
+)
+def test_digit_after_full_number_word_starts_a_new_number(words, value, end):
+    assert read_number(words, 0) == NumberSpan(Decimal(value), end)

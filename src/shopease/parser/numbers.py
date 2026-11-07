@@ -132,6 +132,13 @@ def _build_forms() -> Mapping[str, Form]:
 
 
 _FORMS = _build_forms()
+# Join forms (நூத்தி, ஆயிரத்து) announce that another number follows, so digits may too.
+_JOIN_FORMS = frozenset(
+    stem + sign
+    for word, (value, place) in _base_forms().items()
+    for stem in _stems(word, value, place)
+    for sign in ("ி", "ு")
+)
 
 
 def _digit_place(value: Decimal) -> int:
@@ -155,6 +162,13 @@ def _multiplies(total: Decimal, last_place: int, value: Decimal, place: int) -> 
     return place in (HUNDRED, THOUSAND) and value == place and total < place and last_place < place
 
 
+def _may_follow(previous: str, word: str, is_multiplier: bool) -> bool:
+    """Digits join a span only after a join form (ஆயிரத்து 500) or before நூறு/ஆயிரம் (2 ஆயிரம்)."""
+    if _DIGITS.fullmatch(word):
+        return previous in _JOIN_FORMS
+    return is_multiplier or not _DIGITS.fullmatch(previous)
+
+
 def read_number(words: Sequence[str], start: int) -> NumberSpan | None:
     """Read the longest number starting at words[start], or None."""
     first = _form(words[start]) if 0 <= start < len(words) else None
@@ -163,9 +177,9 @@ def read_number(words: Sequence[str], start: int) -> NumberSpan | None:
     total, last_place = first
     end = start + 1
     while end < len(words) and (form := _form(words[end])) is not None:
-        if _DIGITS.fullmatch(words[end - 1]) and _DIGITS.fullmatch(words[end]):
-            break  # two digit groups are two numbers
         value, place = form
+        if not _may_follow(words[end - 1], words[end], _multiplies(total, last_place, value, place)):
+            break
         if _multiplies(total, last_place, value, place):
             total, last_place = total * place, place
         elif place < last_place:
