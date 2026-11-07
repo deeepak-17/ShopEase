@@ -2,3 +2,7 @@
 
 Owner: Member A (Deepak)
 """
+
+from shopease.parser.parser import parse
+
+__all__ = ["parse"]
