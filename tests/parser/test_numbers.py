@@ -46,3 +46,48 @@ def test_is_number_word():
     assert is_number_word("நூற்றம்பது")
     assert is_number_word("250")
     assert not is_number_word("rice")
+
+
+@pytest.mark.parametrize(
+    "words, value, end",
+    [
+        (["ரெண்டு", "நூறு"], "200", 2),  # review #21: unit x hundred
+        (["மூணு", "நூத்தி", "அம்பது"], "350", 3),
+        (["இருவது"], "20", 1),  # colloquial tens
+        (["அறுவது"], "60", 1),
+        (["எழுவது"], "70", 1),
+        (["எம்பது"], "80", 1),
+        (["தொன்னூறு"], "90", 1),
+        (["பத்தொம்பது"], "19", 1),
+        (["இருவத்தஞ்சு"], "25", 1),
+        (["எம்பத்தஞ்சு"], "85", 1),
+        (["ஒரு"], "1", 1),
+        (["ரெண்டே", "கால்"], "2.25", 2),
+        (["ஒன்னே", "முக்கால்"], "1.75", 2),
+        (["ஒன்னேகால்"], "1.25", 1),
+        (["முக்கா"], "0.75", 1),
+        (["பத்து", "ஆயிரம்"], "10000", 2),
+        (["பத்தாயிரம்"], "10000", 1),
+        (["இருபதாயிரம்"], "20000", 1),
+        (["ரெண்டரை", "ஆயிரம்"], "2500", 2),
+        (["2", "ஆயிரம்"], "2000", 2),  # digits mixed with words
+        (["ஆயிரத்து", "500"], "1500", 2),
+        (["100", "200"], "100", 1),
+        (["20", "5"], "20", 1),  # two digit groups never merge
+        (["ரெண்டு", "அரை"], "2.5", 2),  # pinned: "two and a half", not two halves
+        (["தொண்ணூத்தஞ்சு"], "95", 1),
+        (["ஆயிரத்திருநூறு"], "1200", 1),
+        (["நூத்தி", "பத்து"], "110", 2),
+        (["நூத்தி"], "100", 1),  # join form at end of input
+    ],
+)
+def test_read_spoken_variants(words, value, end):
+    assert read_number(words, 0) == NumberSpan(Decimal(value), end)
+
+
+def test_read_number_rejects_negative_start():
+    assert read_number(["ரெண்டு"], -1) is None
+
+
+def test_digits_must_match_whole_word():
+    assert not is_number_word("250\n")
