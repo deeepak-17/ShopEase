@@ -17,7 +17,16 @@ FILLERS = frozenset({
     "அது", "அதை", "adhu", "adha", "sorry", "இருக்கு", "irukku", "பண்ணு",
     "pannu", "அனுப்பு", "anuppu", "இன்னைக்கு", "inniku", "எவ்வளவு",
     "எவ்வளோ", "எவ்ளோ", "evlo", "ok",
+    # time words: their -க்கு is not a name's dative
+    "இன்னிக்கு", "நாளைக்கு", "நாளை", "நேத்து", "நேற்று", "இப்போ", "அதுக்கு", "இதுக்கு", "எதுக்கு",
+    # pronouns: never a customer name
+    "எனக்கு", "உனக்கு", "அவருக்கு", "அவங்களுக்கு", "அவனுக்கு", "அவளுக்கு", "இவருக்கு",
+    # how they paid
+    "cash", "கேஷ்", "gpay", "phonepe", "upi", "la", "ல",
 })
+
+# "I gave" (கொடுத்தேன், kuduthen): money went out to the customer, so it is credit.
+FIRST_PERSON_ENDINGS = ("ேன்", "en")
 
 UNITS = MappingProxyType({
     "கிலோ": "kilo", "kilo": "kilo", "kg": "kilo",

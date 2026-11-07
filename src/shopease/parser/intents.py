@@ -18,6 +18,9 @@ _NEEDS_NAME = frozenset({
 _NEEDS_AMOUNT = frozenset({IntentType.ADD_CREDIT, IntentType.RECORD_PAYMENT})
 
 
+Spans = tuple[tuple[int, NumberSpan], ...]
+
+
 @dataclass(frozen=True)
 class BuiltIntent:
     intent: Intent
@@ -46,8 +49,8 @@ def _join(tokens: tuple[Token, ...]) -> str:
     return " ".join(t.base for t in tokens)
 
 
-def _number_spans(keys: list[str]) -> tuple[tuple[int, NumberSpan], ...]:
-    spans: tuple[tuple[int, NumberSpan], ...] = ()
+def _number_spans(keys: list[str]) -> Spans:
+    spans: Spans = ()
     i = 0
     while i < len(keys):
         span = read_number(keys, i)
@@ -55,7 +58,7 @@ def _number_spans(keys: list[str]) -> tuple[tuple[int, NumberSpan], ...]:
     return spans
 
 
-def _items(tokens: tuple[Token, ...], spans) -> tuple[tuple[_Located, ...], frozenset[int]]:
+def _items(tokens: tuple[Token, ...], spans: Spans) -> tuple[tuple[_Located, ...], frozenset[int]]:
     """Items with a quantity (ரெண்டு கிலோ rice) or after a joiner (and oil packet)."""
     keys = [t.key for t in tokens]
     starts = {start: span for start, span in spans}
@@ -80,7 +83,7 @@ def _items(tokens: tuple[Token, ...], spans) -> tuple[tuple[_Located, ...], froz
     return found, used
 
 
-def _amount(keys: list[str], spans, used: frozenset[int]) -> tuple[Decimal | None, bool]:
+def _amount(keys: list[str], spans: Spans, used: frozenset[int]) -> tuple[Decimal | None, bool]:
     """The amount and whether choosing it was a guess."""
     free = [(start, span) for start, span in spans if start not in used]
     marked = [
@@ -138,7 +141,17 @@ def _alias(clause: Clause) -> Intent | None:
     return Intent(IntentType.TEACH_ALIAS, spoken_name=_join(tokens[:split]), alias_target=_join(tokens[split + 1 :]))
 
 
-def _triggered(clause: Clause, kind: IntentType) -> BuiltIntent:
+@dataclass(frozen=True)
+class _Parts:
+    name: str | None
+    name_size: int
+    amount: Decimal | None
+    is_amount_guess: bool
+    items: tuple[Item, ...]
+    has_stray_words: bool  # unknown words that are neither the name nor an item
+
+
+def _parts(clause: Clause) -> _Parts:
     tokens = clause.tokens
     keys = [t.key for t in tokens]
     spans = _number_spans(keys)
@@ -147,18 +160,45 @@ def _triggered(clause: Clause, kind: IntentType) -> BuiltIntent:
     if clause.corrected_amount is not None:
         amount, is_guess = clause.corrected_amount, False
     names = _name_range(tokens, used)
-    name = _join(tokens[names.start : names.stop]) or None
-    if kind == IntentType.ADD_CREDIT:
-        located = located + _leftover_items(tokens, used | frozenset(names))
-    items = tuple(x.item for x in sorted(located, key=lambda x: x.position))
+    leftovers = _leftover_items(tokens, used | frozenset(names))
+    is_credit = clause.trigger == IntentType.ADD_CREDIT
+    located = located + leftovers if is_credit else located
+    return _Parts(
+        name=_join(tokens[names.start : names.stop]) or None,
+        name_size=len(names),
+        amount=amount,
+        is_amount_guess=is_guess,
+        items=tuple(x.item for x in sorted(located, key=lambda x: x.position)),
+        has_stray_words=bool(leftovers) and not is_credit,
+    )
+
+
+def _is_name_doubtful(clause: Clause, parts: _Parts) -> bool:
+    """Three-word names, or several words with no -க்கு to show which is the name."""
+    has_dative = any(t.is_dative for t in clause.tokens)
+    return parts.name_size >= 3 or (parts.name_size > 1 and not has_dative) or parts.has_stray_words
+
+
+def _triggered(clause: Clause, kind: IntentType) -> BuiltIntent:
+    parts = _parts(clause)
     intent = Intent(
         kind,
-        spoken_name=name if kind in _NEEDS_NAME else None,
-        amount=amount if kind in _NEEDS_AMOUNT else None,
-        items=items if kind == IntentType.ADD_CREDIT else (),
+        spoken_name=parts.name if kind in _NEEDS_NAME else None,
+        amount=parts.amount if kind in _NEEDS_AMOUNT else None,
+        items=parts.items if kind == IntentType.ADD_CREDIT else (),
     )
-    is_missing = (kind in _NEEDS_NAME and name is None) or (kind in _NEEDS_AMOUNT and amount is None)
-    return BuiltIntent(intent, is_missing or (kind in _NEEDS_AMOUNT and is_guess))
+    is_missing = (kind in _NEEDS_NAME and parts.name is None) or (kind in _NEEDS_AMOUNT and parts.amount is None)
+    is_guess = kind in _NEEDS_AMOUNT and parts.is_amount_guess
+    is_name_doubt = kind in _NEEDS_NAME and _is_name_doubtful(clause, parts)
+    return BuiltIntent(intent, is_missing or is_guess or is_name_doubt or clause.is_doubtful)
+
+
+def _unknown(clause: Clause) -> BuiltIntent:
+    """No verb: keep a name and amount if heard ("Ravi ku 250") so the ledger can ask."""
+    parts = _parts(clause)
+    if parts.amount is None:
+        return BuiltIntent(Intent(IntentType.UNKNOWN), True)
+    return BuiltIntent(Intent(IntentType.UNKNOWN, spoken_name=parts.name, amount=parts.amount), True)
 
 
 def build_intent(clause: Clause) -> BuiltIntent:
@@ -168,5 +208,5 @@ def build_intent(clause: Clause) -> BuiltIntent:
     if clause.trigger is None and clause.corrected_amount is not None:
         return BuiltIntent(Intent(IntentType.CORRECT_AMOUNT, amount=clause.corrected_amount), False)
     if clause.trigger is None:
-        return BuiltIntent(Intent(IntentType.UNKNOWN), True)
+        return _unknown(clause)
     return _triggered(clause, clause.trigger)
