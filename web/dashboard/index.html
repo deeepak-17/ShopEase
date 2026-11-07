@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShopEase Ledger</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: #f5f7fb; color: #172033; }
+    main { max-width: 760px; margin: auto; padding: 1rem; }
+    header { display: flex; justify-content: space-between; align-items: center; }
+    .summary, .customer, .entry { background: white; border-radius: 12px; padding: 1rem; margin: .75rem 0; box-shadow: 0 2px 8px #17203312; }
+    .summary { font-size: 1.2rem; }
+    .customer { display: flex; justify-content: space-between; }
+    .amount { font-weight: 700; }
+    button { border: 0; border-radius: 8px; padding: .6rem .8rem; background: #2457d6; color: white; }
+    @media (max-width: 480px) { header { align-items: flex-start; gap: .5rem; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header><h1>ShopEase</h1><button id="refresh">Refresh</button></header>
+    <section class="summary" id="total">Today's total: loading…</section>
+    <h2>Customers</h2>
+    <section id="customers">Loading…</section>
+    <h2>Today's entries</h2>
+    <section id="entries">Loading…</section>
+  </main>
+  <script>
+    const money = value => `₹${Number(value).toFixed(2)}`;
+    async function loadDashboard() {
+      const response = await fetch('/ledger');
+      if (!response.ok) throw new Error(`Ledger request failed: ${response.status}`);
+      const data = await response.json();
+      document.querySelector('#total').textContent = `Today's total: ${money(data.daily_total || 0)}`;
+      renderList(document.querySelector('#customers'), data.customers || [], customer => {
+        const article = document.createElement('article');
+        article.className = 'customer';
+        const name = document.createElement('span');
+        name.textContent = customer.name;
+        const balance = document.createElement('span');
+        balance.className = 'amount';
+        balance.textContent = money(customer.balance);
+        article.append(name, balance);
+        return article;
+      }, 'No customers yet.');
+      renderList(document.querySelector('#entries'), data.entries || [], entry => {
+        const article = document.createElement('article');
+        article.className = 'entry';
+        article.textContent = `${entry.kind}: ${money(entry.amount)}${entry.customer_name ? ` — ${entry.customer_name}` : ''}`;
+        return article;
+      }, 'No entries today.');
+    }
+    function renderList(container, values, render, emptyText) {
+      container.replaceChildren();
+      if (!values.length) {
+        container.textContent = emptyText;
+        return;
+      }
+      values.forEach(value => container.append(render(value)));
+    }
+    document.querySelector('#refresh').addEventListener('click', loadDashboard);
+    loadDashboard().catch(error => {
+      document.querySelector('#customers').textContent = error.message;
+      document.querySelector('#entries').textContent = 'Could not load ledger.';
+    });
+  </script>
+</body>
+</html>
