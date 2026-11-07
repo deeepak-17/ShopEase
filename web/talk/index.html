@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShopEase Talk</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; }
+    body { margin: 0; background: #f5f7fb; color: #172033; }
+    main { max-width: 560px; margin: auto; padding: 1rem; display: flex; flex-direction: column; min-height: 100dvh; box-sizing: border-box; }
+    header { display: flex; justify-content: space-between; align-items: center; }
+    header a { color: #2457d6; }
+    #status { min-height: 1.5rem; text-align: center; color: #4a5568; }
+    #status.error { color: #b42318; }
+    #turns { flex: 1; overflow-y: auto; }
+    .turn { background: white; border-radius: 12px; padding: 1rem; margin: .75rem 0; box-shadow: 0 2px 8px #17203312; }
+    .said { color: #4a5568; }
+    .said:empty::before { content: "(no words heard)"; font-style: italic; }
+    .reply { font-weight: 600; margin-top: .5rem; }
+    .confirm { margin-top: .5rem; color: #2457d6; }
+    #talk {
+      align-self: center; width: 9rem; height: 9rem; border-radius: 50%; border: 0; margin: 1rem 0 1.5rem;
+      background: #2457d6; color: white; font-size: 1.1rem; font-weight: 700;
+      touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+    }
+    #talk.recording { background: #d92d20; transform: scale(1.08); }
+    #talk:disabled { background: #98a2b3; }
+  </style>
+</head>
+<body>
+  <main>
+    <header><h1>ShopEase</h1><a href="/dashboard/">Ledger</a></header>
+    <section id="turns" aria-live="polite"></section>
+    <p id="status">Hold the button and speak</p>
+    <button id="talk" type="button" aria-label="Hold to talk">Hold to talk</button>
+  </main>
+  <script>
+    const MAX_RECORDING_MS = 30_000;  // Prisma accepts at most 30 s per request
+    const MIN_RECORDING_MS = 400;     // shorter is an accidental tap
+    const MAX_TURNS = 20;
+    const MIME_TYPES = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/webm'];
+
+    const button = document.querySelector('#talk');
+    const statusLine = document.querySelector('#status');
+    const turns = document.querySelector('#turns');
+    let recorder = null;
+    let startedAt = 0;
+    let limitTimer = null;
+    let isBusy = false;
+    let isHolding = false;  // released before the mic opened? then do not record
+
+    function setStatus(text, isError = false) {
+      statusLine.textContent = text;
+      statusLine.classList.toggle('error', isError);
+    }
+
+    function micProblem(error) {
+      if (!window.isSecureContext) return 'The microphone needs https. Open this page over an https link.';
+      if (error && error.name === 'NotAllowedError') return 'Microphone blocked. Allow it in the browser settings.';
+      if (error && error.name === 'NotFoundError') return 'No microphone found.';
+      return 'Could not start the microphone.';
+    }
+
+    async function startRecording() {
+      isHolding = true;
+      if (recorder || isBusy) return;
+      if (!window.isSecureContext || !navigator.mediaDevices || !window.MediaRecorder) {
+        setStatus(micProblem(null), true);
+        return;
+      }
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (error) {
+        setStatus(micProblem(error), true);
+        return;
+      }
+      if (!isHolding || recorder) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+      const mimeType = MIME_TYPES.find(type => MediaRecorder.isTypeSupported(type));
+      const chunks = [];
+      recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recorder.addEventListener('dataavailable', event => { if (event.data.size) chunks.push(event.data); });
+      recorder.addEventListener('stop', () => {
+        stream.getTracks().forEach(track => track.stop());
+        const duration = Date.now() - startedAt;
+        const type = recorder.mimeType || mimeType || 'audio/webm';
+        recorder = null;
+        if (duration < MIN_RECORDING_MS || !chunks.length) {
+          setStatus('Too short. Hold the button while you speak.');
+          return;
+        }
+        sendCommand(new Blob(chunks, { type }));
+      });
+      startedAt = Date.now();
+      recorder.start();
+      button.classList.add('recording');
+      button.textContent = 'Listening…';
+      setStatus('Release when you finish');
+      limitTimer = setTimeout(stopRecording, MAX_RECORDING_MS);
+    }
+
+    function stopRecording() {
+      isHolding = false;
+      clearTimeout(limitTimer);
+      button.classList.remove('recording');
+      button.textContent = 'Hold to talk';
+      if (recorder && recorder.state !== 'inactive') recorder.stop();
+    }
+
+    function extensionFor(type) {
+      if (type.includes('mp4')) return 'm4a';
+      if (type.includes('ogg')) return 'ogg';
+      return 'webm';
+    }
+
+    async function sendCommand(blob) {
+      isBusy = true;
+      button.disabled = true;
+      setStatus('Understanding…');
+      try {
+        const form = new FormData();
+        form.append('audio', blob, `command.${extensionFor(blob.type)}`);
+        const response = await fetch('/command', { method: 'POST', body: form });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Server error ${response.status}`);
+        showTurn(data.transcript || '', data.reply || {});
+        setStatus(data.reply && data.reply.needs_confirmation ? 'Hold and answer' : 'Hold the button and speak');
+      } catch (error) {
+        setStatus(`${error.message || 'Network error'}. Try again.`, true);
+      } finally {
+        isBusy = false;
+        button.disabled = false;
+      }
+    }
+
+    function showTurn(transcript, reply) {
+      const turn = document.createElement('article');
+      turn.className = 'turn';
+      const said = document.createElement('div');
+      said.className = 'said';
+      said.textContent = transcript;
+      const answer = document.createElement('div');
+      answer.className = 'reply';
+      answer.textContent = reply.text || '';
+      turn.append(said, answer);
+      if (reply.needs_confirmation) {
+        const confirm = document.createElement('div');
+        confirm.className = 'confirm';
+        confirm.textContent = 'Say "aama" or "illa"';
+        turn.append(confirm);
+      }
+      turns.append(turn);
+      while (turns.children.length > MAX_TURNS) turns.firstElementChild.remove();
+      turn.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      if (reply.audio_url) new Audio(reply.audio_url).play().catch(() => {});
+    }
+
+    button.addEventListener('pointerdown', event => { event.preventDefault(); startRecording(); });
+    button.addEventListener('pointerup', stopRecording);
+    button.addEventListener('pointercancel', stopRecording);
+    button.addEventListener('pointerleave', stopRecording);
+    button.addEventListener('contextmenu', event => event.preventDefault());
+    document.addEventListener('keydown', event => {
+      if (event.code === 'Space' && !event.repeat) { event.preventDefault(); startRecording(); }
+    });
+    document.addEventListener('keyup', event => {
+      if (event.code === 'Space') { event.preventDefault(); stopRecording(); }
+    });
+  </script>
+</body>
+</html>
